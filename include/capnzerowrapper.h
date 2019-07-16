@@ -59,7 +59,7 @@ const char *receiveSerializedMessage(void *socket, capnzero::CommType type) {
     }
     int nbytes = zmq_msg_recv(&msg, socket, 0);
 
-    //        std::cout << "Subscriber::receive(): nBytes: " << nbytes << " errno: " << errno << "(EAGAIN: " << EAGAIN << ")" << std::endl;
+    //std::cout << "Subscriber::receive(): nBytes: " << nbytes << " errno: " << errno << "(EAGAIN: " << EAGAIN << ")" << std::endl;
 
     // handling for unsuccessful call to zmq_msg_recv
     if (nbytes == -1) {
@@ -74,8 +74,9 @@ const char *receiveSerializedMessage(void *socket, capnzero::CommType type) {
 
     // Received message must contain an integral number of words.
     if (zmq_msg_size(&msg) % capnzero::Subscriber::wordSize != 0) {
-        std::cout << "Non-Integral number of words!" << std::endl;
+        std::cerr << "Non-Integral number of words!" << std::endl;
         capnzero::check(zmq_msg_close(&msg), "zmq_msg_close");
+        return "";
     }
 
     // Check whether message is memory aligned
