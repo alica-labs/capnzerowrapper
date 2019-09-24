@@ -13,7 +13,7 @@ bool running = true;
 
 void recv_msg(void* socket) {
     while(running) {
-        std::cout << "received: " << receiveSerializedMessage(socket, capnzero::CommType::UDP) << std::endl;
+        std::cout << "received: " << receiveSerializedMessage(socket, capnzero::Protocol::UDP) << std::endl;
     }
 }
 
@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
     // pub
     void* socket = zmq_socket(ctx, ZMQ_RADIO);
     zmq_connect(socket, "udp://224.0.0.1:5555");
-    sendMessage(socket, capnzero::CommType::UDP, "MCGroup", "Hello World man!");
+    sendMessage(socket, capnzero::Protocol::UDP, "MCGroup", "Hello World man!");
     std::cout << "sent \"Hello World man!\"" << std::endl;
 
 

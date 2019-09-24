@@ -25,6 +25,7 @@ add_library(${PROJECT_NAME}
             src/capnzerowrapper.cpp
             include/capnzerowrapper.h
         )
+
 # To fix compilation problem: relocation R_X86_64_32 against `a local symbol' can not be
 # used when making a shared object; recompile with -fPIC
 # See http://www.cmake.org/pipermail/cmake/2007-May/014350.html

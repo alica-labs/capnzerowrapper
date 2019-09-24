@@ -8,9 +8,11 @@ static void cleanUpMsgData(void* data, void* hint) {
     delete reinterpret_cast<kj::Array<capnp::word>*>(hint);
 }
 
-int sendMessage(void *socket, capnzero::CommType commType, const char *c_topic, const char *c_message) {
+int sendMessage(void *socket, capnzero::Protocol protocol, const char *c_topic, const char *c_message) {
     std::string message(c_message);
     std::string topic(c_topic);
+
+    assert(topic.length() < capnzero::MAX_TOPIC_LENGTH && "The given topic is too long!");
 
     // init builder
     ::capnp::MallocMessageBuilder msgBuilder;
@@ -21,71 +23,65 @@ int sendMessage(void *socket, capnzero::CommType commType, const char *c_topic, 
 
     // setup zmq msg
     zmq_msg_t msg;
+    int sumBytesSend = 0;
 
     kj::Array<capnp::word> wordArray = capnp::messageToFlatArray(msgBuilder);
-    kj::Array<capnp::word> *wordArrayPtr = new kj::Array<capnp::word>(kj::mv(wordArray)); // will be delete by zero-mq
+    kj::Array<capnp::word> *wordArrayPtr = new kj::Array<capnp::word>(kj::mv(wordArray)); // will be deleted by zero-mq
     capnzero::check(zmq_msg_init_data(&msg, wordArrayPtr->begin(), wordArrayPtr->size() * sizeof(capnp::word),
                                       &cleanUpMsgData,
                                       wordArrayPtr), "zmq_msg_init_data");
 
     // set group
-    if (commType == capnzero::CommType::UDP) {
+    if (protocol == capnzero::Protocol::UDP) {
 //        std::cout << "Publisher: Sending on Group '" << topic << "'" << std::endl;
         capnzero::check(zmq_msg_set_group(&msg, topic.c_str()), "zmq_msg_set_group");
-    }
-
-    // send
-    if (commType != capnzero::CommType::UDP) {
+    } else {
+        // for NON-UDP via multi part messages
         zmq_msg_t topicMsg;
-        zmq_msg_init_data(&topicMsg, &topic, topic.size() * sizeof(topic), &cleanUpMsgData, NULL);
-        zmq_msg_send(&topicMsg, socket, ZMQ_SNDMORE);
-    }
-    int numBytesSend = zmq_msg_send(&msg, socket, 0);
-    if (numBytesSend == -1) {
-        std::cerr << "zmq_msg_send was unsuccessful: Errno " << errno << " means: " << zmq_strerror(errno) << std::endl;
-        capnzero::check(zmq_msg_close(&msg), "zmq_msg_close");
+        capnzero::check(zmq_msg_init_data(&topicMsg, &topic, topic.size() * sizeof(topic), NULL, NULL), "zmq_msg_init_data for topic");
+        sumBytesSend = capnzero::checkSend(zmq_msg_send(&topicMsg, socket, ZMQ_SNDMORE), topicMsg, "Publisher-topic");
+        if (sumBytesSend == 0) {
+            // sending topic did not work, so stop here
+            return sumBytesSend;
+        }
     }
 
-    return numBytesSend;
+    sumBytesSend += capnzero::checkSend(zmq_msg_send(&msg, socket, 0), msg, "Publisher-content");
+    return sumBytesSend;
 }
 
-const char *receiveSerializedMessage(void *socket, capnzero::CommType type) {
-    zmq_msg_t msg;
-    capnzero::check(zmq_msg_init(&msg), "zmq_msg_init");
-    if (type != capnzero::CommType::UDP) {
+const char *receiveSerializedMessage(void *socket, capnzero::Protocol protocol) {
+    if (protocol != capnzero::Protocol::UDP) {
         zmq_msg_t topic;
         capnzero::check(zmq_msg_init(&topic), "zmq_msg_init");
-        zmq_msg_recv(&topic, socket, 0);
+        //zmq_msg_recv(&topic, socket, 0);
+        if (0 == capnzero::checkReceive(zmq_msg_recv(&topic, socket, ZMQ_SNDMORE), topic, "Subscriber::receive-topic")) {
+            // error or timeout on recv
+            return "";
+        }
     }
-    int nbytes = zmq_msg_recv(&msg, socket, 0);
 
-    //std::cout << "Subscriber::receive(): nBytes: " << nbytes << " errno: " << errno << "(EAGAIN: " << EAGAIN << ")" << std::endl;
-
-    // handling for unsuccessful call to zmq_msg_recv
-    if (nbytes == -1) {
-        //if (errno != EAGAIN) // receiving a message was unsuccessful
-        //{
-            std::cerr << "Subscriber::receive(): zmq_msg_recv received no bytes! " << errno << " - zmq_strerror(errno)"
-                      << std::endl;
-        //}
-        capnzero::check(zmq_msg_close(&msg), "zmq_msg_close");
+    zmq_msg_t msg;
+    capnzero::check(zmq_msg_init(&msg), "zmq_msg_init");
+    if (0 == capnzero::checkReceive(zmq_msg_recv(&msg, socket, 0), msg, "Subscriber::receive")) {
+        // error or timeout on recv
         return "";
     }
 
     // Received message must contain an integral number of words.
-    if (zmq_msg_size(&msg) % capnzero::Subscriber::wordSize != 0) {
+    if (zmq_msg_size(&msg) % capnzero::Subscriber::WORD_SIZE != 0) {
         std::cerr << "Non-Integral number of words!" << std::endl;
         capnzero::check(zmq_msg_close(&msg), "zmq_msg_close");
         return "";
     }
 
     // Check whether message is memory aligned
-    assert(reinterpret_cast<uintptr_t>(zmq_msg_data(&msg)) % capnzero::Subscriber::wordSize == 0);
+    //assert(reinterpret_cast<uintptr_t>(zmq_msg_data(&msg)) % capnzero::Subscriber::wordSize == 0);
 
-    int numWordsInMsg = zmq_msg_size(&msg);
+
+    int msgSize = zmq_msg_size(&msg);
     auto wordArray = kj::ArrayPtr<capnp::word const>(reinterpret_cast<capnp::word const *>(zmq_msg_data(&msg)),
-                                                     numWordsInMsg);
-
+                                                     msgSize);
     ::capnp::FlatArrayMessageReader msgReader = ::capnp::FlatArrayMessageReader(wordArray);
 
     capnzero::check(zmq_msg_close(&msg), "zmq_msg_close");
