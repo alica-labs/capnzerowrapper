@@ -1,0 +1,3 @@
+[submodule "submodules/capnzero"]
+	path = submodules/capnzero
+	url = git@github.com:sst97/capnzero.git
