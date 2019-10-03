@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.9)
 project(capnzerowrapper VERSION 1.0 DESCRIPTION "Wrapper library for Capnzero")
 
 ## Compile as C++11
-add_compile_options(-std=c++11)
+add_compile_options(-std=c++14)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_subdirectory(submodules/capnzero/capnzero)
 
