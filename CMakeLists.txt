@@ -5,6 +5,7 @@ project(capnzerowrapper VERSION 1.0 DESCRIPTION "Wrapper library for Capnzero")
 add_compile_options(-std=c++11)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_subdirectory(submodules/capnzero/capnzero)
+add_subdirectory(submodules/capnzero/id_capnzero)
 
 include(GNUInstallDirs)
 
@@ -18,6 +19,8 @@ set(CapnProto_INCLUDE_DIRS ${CAPNP_INCLUDE_DIRS})
 ## System dependencies are found with CMake's conventions
 find_package(ZeroMQ REQUIRED)
 find_package(CapnProto REQUIRED)
+find_package(id_capnzero REQUIRED)
+find_package(capnzero REQUIRED)
 
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
@@ -25,6 +28,19 @@ add_library(${PROJECT_NAME}
             src/capnzerowrapper.cpp
             include/capnzerowrapper.h
         )
+
+#### ALICA CAPNZERO MESSAGES
+set(CAPNPC_IMPORT_DIRS "${id_capnzero_SOURCE_PREFIX}/include")# include external capnp message schema files
+set(${PROJECT_NAME}_msgs "${CMAKE_CURRENT_SOURCE_DIR}/include/alica_capnz_msg")
+file(GLOB_RECURSE capnp_messages
+        #${CMAKE_CURRENT_SOURCE_DIR}/include/capnzero/*.capnp
+        ${${PROJECT_NAME}_msgs}/ID.capnp
+        ${${PROJECT_NAME}_msgs}/*.capnp)
+set(CAPNPC_SRC_PREFIX ${${PROJECT_NAME}_msgs})
+set(CAPNPC_OUTPUT_DIR ${${PROJECT_NAME}_msgs})
+capnp_generate_cpp(CAPNP_SRCS CAPNP_HDRS ${capnp_messages})
+
+add_library(alica_capnz_msgs ${CAPNP_SRCS})
 
 # To fix compilation problem: relocation R_X86_64_32 against `a local symbol' can not be
 # used when making a shared object; recompile with -fPIC
@@ -39,21 +55,29 @@ target_link_libraries(${PROJECT_NAME}
         PRIVATE
             capnzero
             capnzero-base-msgs
+            alica_capnz_msgs
+            #id_capnzero
             ${ZeroMQ_LIBRARIES}
             ${CAPNP_LIBRARIES}
+            ${id_capnzero_LIBRARIES}
         )
 
 target_include_directories(${PROJECT_NAME}
         PUBLIC
             "${CMAKE_CURRENT_SOURCE_DIR}/include"
             submodules/capnzero/capnzero/include
-            submodules/capnzero/capnzero/include/capnzero-base-msgs)
+            submodules/capnzero/capnzero/include/capnzero-base-msgs
+            submodules/capnzero/id_capnzero/include
+        )
 
 include_directories(
         include
         capnzero
+        id_capnzero
         ${ZeroMQ_INCLUDE_DIRS}
         ${CapnProto_INCLUDE_DIRS}
+        ${capnzero_INCLUDE_DIRS}
+        ${id_capnzero_INCLUDE_DIRS}
 )
 
 install(TARGETS ${PROJECT_NAME}

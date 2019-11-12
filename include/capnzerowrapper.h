@@ -2,6 +2,7 @@
 
 #include <capnzero/CapnZero.h>
 #include <capnzero-base-msgs/string.capnp.h>
+#include "../include/alica_capnz_msg/AlicaEngineInfo.capnp.h"
 
 extern "C" {
 static void cleanUpMsgData(void* data, void* hint) {
@@ -50,7 +51,7 @@ int sendMessage(void *socket, capnzero::Protocol protocol, const char *c_topic, 
     return sumBytesSend;
 }
 
-const char *receiveSerializedMessage(void *socket, capnzero::Protocol protocol) {
+const char* receiveSerializedMessage(void *socket, capnzero::Protocol protocol) {
     if (protocol != capnzero::Protocol::UDP) {
         zmq_msg_t topic;
         capnzero::check(zmq_msg_init(&topic), "zmq_msg_init");
@@ -65,7 +66,8 @@ const char *receiveSerializedMessage(void *socket, capnzero::Protocol protocol) 
     capnzero::check(zmq_msg_init(&msg), "zmq_msg_init");
     if (0 == capnzero::checkReceive(zmq_msg_recv(&msg, socket, 0), msg, "Subscriber::receive")) {
         // error or timeout on recv
-        return "";
+        char const *p = "";
+        return p;
     }
 
     // Received message must contain an integral number of words.
@@ -86,7 +88,12 @@ const char *receiveSerializedMessage(void *socket, capnzero::Protocol protocol) 
 
     capnzero::check(zmq_msg_close(&msg), "zmq_msg_close");
 
-    const std::string message = msgReader.getRoot<capnzero::String>().getString();
-    return message.c_str();
+    std::string message = msgReader.getRoot<alica_capnz_msgs::AlicaEngineInfo>().toString().flatten().cStr();
+    //std::cout << "C_DEBUG AlicaEngineInfo: " << message << std::endl;
+    return strdup(message.c_str());
+}
+
+void freeStr(char* str) {
+    free(str);
 }
 }
