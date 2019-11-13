@@ -94,6 +94,8 @@ const char* receiveSerializedMessage(void *socket, capnzero::Protocol protocol) 
 }
 
 void freeStr(char* str) {
-    free(str);
+    if(str != nullptr) {
+        free(str);
+    }
 }
 }
