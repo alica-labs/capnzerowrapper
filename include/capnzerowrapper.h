@@ -2,6 +2,7 @@
 
 #include <capnzero/CapnZero.h>
 #include <capnzero-base-msgs/string.capnp.h>
+#include <map>
 #include "../include/alica_capnz_msg/AlicaEngineInfo.capnp.h"
 
 extern "C" {
@@ -51,6 +52,8 @@ int sendMessage(void *socket, capnzero::Protocol protocol, const char *c_topic, 
     return sumBytesSend;
 }
 
+std::map<int, char*> msgs;
+
 const char* receiveSerializedMessage(void *socket, capnzero::Protocol protocol) {
     if (protocol != capnzero::Protocol::UDP) {
         zmq_msg_t topic;
@@ -88,14 +91,27 @@ const char* receiveSerializedMessage(void *socket, capnzero::Protocol protocol) 
 
     capnzero::check(zmq_msg_close(&msg), "zmq_msg_close");
 
-    std::string message = msgReader.getRoot<alica_capnz_msgs::AlicaEngineInfo>().toString().flatten().cStr();
+    unsigned long msgId = 0;
+    // find unique id for the message
+    for (; msgId < msgs.size(); msgId++) {
+        if (msgs.count(msgId) == 0) {
+            break;
+        }
+    }
+
+    std::string message = std::to_string(msgId) + "::" + msgReader.getRoot<alica_capnz_msgs::AlicaEngineInfo>().toString().flatten().cStr();
     //std::cout << "C_DEBUG AlicaEngineInfo: " << message << std::endl;
-    return strdup(message.c_str());
+    char* ret = strdup(message.c_str());
+    msgs.emplace(msgId, ret);
+    return ret;
 }
 
-void freeStr(char* str) {
-    if(str != nullptr) {
-        free(str);
+void freeStr(int id) {
+    auto it = msgs.find(id);
+    if (it != msgs.end()) {
+        char* message = it->second;
+        msgs.erase(id);
+        free(message); // c-style, better for JNA
     }
 }
 }
