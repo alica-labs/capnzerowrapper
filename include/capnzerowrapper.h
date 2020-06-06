@@ -85,25 +85,32 @@ const char* receiveSerializedMessage(void *socket, capnzero::Protocol protocol) 
 
 
     int msgSize = zmq_msg_size(&msg);
-    auto wordArray = kj::ArrayPtr<capnp::word const>(reinterpret_cast<capnp::word const *>(zmq_msg_data(&msg)),
-                                                     msgSize);
-    ::capnp::FlatArrayMessageReader msgReader = ::capnp::FlatArrayMessageReader(wordArray);
+    try {
+		auto wordArray = kj::ArrayPtr < capnp::word const>(reinterpret_cast<capnp::word const *>(zmq_msg_data(&msg)),
+				msgSize);
+		::capnp::FlatArrayMessageReader msgReader = ::capnp::FlatArrayMessageReader(wordArray);
 
-    capnzero::check(zmq_msg_close(&msg), "zmq_msg_close");
+		capnzero::check(zmq_msg_close(&msg), "zmq_msg_close");
 
-    unsigned long msgId = 0;
-    // find unique id for the message
-    for (; msgId < msgs.size(); msgId++) {
-        if (msgs.count(msgId) == 0) {
-            break;
-        }
+		unsigned long msgId = 0;
+		// find unique id for the message
+		for (; msgId < msgs.size(); msgId++) {
+			if (msgs.count(msgId) == 0) {
+				break;
+			}
+		}
+
+		std::string message = std::to_string(msgId) + "::" + msgReader.getRoot<alica_capnz_msgs::AlicaEngineInfo>().toString().flatten().cStr();
+		//std::cout << "C_DEBUG AlicaEngineInfo: " << message << std::endl;
+		char* ret = strdup(message.c_str());
+		msgs.emplace(msgId, ret);
+		return ret;
+	} catch (...) {
+		std::cerr << "some kj error occurred :(" << std::endl;
+		capnzero::check(zmq_msg_close(&msg), "zmq_msg_close");
+		return "";
     }
 
-    std::string message = std::to_string(msgId) + "::" + msgReader.getRoot<alica_capnz_msgs::AlicaEngineInfo>().toString().flatten().cStr();
-    //std::cout << "C_DEBUG AlicaEngineInfo: " << message << std::endl;
-    char* ret = strdup(message.c_str());
-    msgs.emplace(msgId, ret);
-    return ret;
 }
 
 void freeStr(int id) {
