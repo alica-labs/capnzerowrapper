@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>capnzerowrapper</name>
+  <version>0.0.0</version>
+  <description>The capnzero wrapper package</description>
+
+  <maintainer email="jsc@vs.uni-kassel.de">Jonas Schaefer</maintainer>
+
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>capnzero</depend>
+  <depend>id_capnzero</depend>
+
+  <export>
+  </export>
+</package>
